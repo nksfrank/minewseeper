@@ -9,21 +9,25 @@ new state of the game.
 Initially all coordinates are unvisited, i.e. covered. This shall be illustrated
 with a "?". The first program output will be:
 
+```
   01234
 4|?????
 3|?????
 2|?????
 1|?????
 0|?????
+```
 
 If the user then inputs "4 0" the new state will be:
 
+```
   01234
 4|?????
 3|?????
 2|?????
 1|??111
 0|??1
+```
 
 The program shall uncover all coordinates adjacent to the visited one
 until a bomb is uncovered
