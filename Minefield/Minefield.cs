@@ -22,7 +22,7 @@ public class Cell
         {
             ({ Revealed: false, IsBomb: true }, GameState.Lost) => "Q",
             ({ Revealed: false, IsFlagged: true }, _) => "F",
-            ({ Revealed: false }, _) => "#",
+            ({ Revealed: false }, _) => "?",
             ({ IsBomb: true }, _) => "X",
             ({ Neighbours: 0 }, _) => ".",
             _ => Neighbours

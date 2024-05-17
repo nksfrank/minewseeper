@@ -1,5 +1,4 @@
 # Code a text based minesweeper game
-==================================
 
 Start with this sample project and expand so that it accepts input
 in the form of coordinates: "x y". For every coordinate input the
