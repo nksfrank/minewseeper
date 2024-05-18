@@ -152,48 +152,13 @@ public class Minefield
 
     private void Update(Move move)
     {
-        var cellsSeen = new Dictionary<(int, int), bool>();
+        var cellsSeen = new HashSet<(int, int)>();
         var moves = new Queue<Move>();
         moves.Enqueue(move);
         while (moves.Any())
         {
             var mv = moves.Dequeue();
-
-            var c = GetCell(mv);
-            switch (mv.Type)
-            {
-                case MoveType.Reveal:
-                    c.Revealed = true;
-                    if (c.IsBomb)
-                    {
-                        moves.Clear();
-                        break;
-                    }
-
-                    var valid = matrix.Select(m => (mv.X + m.x, mv.Y + m.y)).Where(ValidPosition).ToArray();
-                    c.Neighbours = valid.Select(GetCell).Count(c => c.IsBomb);
-
-                    if (0 < c.Neighbours)
-                    {
-                        break;
-                    }
-
-                    foreach (var (dx, dy) in valid)
-                    {
-                        if (!cellsSeen.ContainsKey((dx, dy)))
-                        {
-                            cellsSeen.Add((dx, dy), true);
-                            moves.Enqueue(Move.Reveal(dx, dy));
-                        }
-                    }
-                    break;
-                case MoveType.Flag:
-                    c.IsFlagged = true;
-                    break;
-                case MoveType.Deflag:
-                    c.IsFlagged = false;
-                    break;
-            }
+            ProcessCell(mv, moves, cellsSeen);
         }
 
         var flat = board.SelectMany(r => r.Select(c => c));
@@ -206,6 +171,59 @@ public class Minefield
             (_, _, true) => GameState.Lost,
             _ => State
         };
-        Console.WriteLine($"{allCellsAreRevealed}, {allBombsAreFlagged}, {aBombIsRevealed} {State}");
+
+    }
+
+    private void ProcessCell(Move mv, Queue<Move> moves, HashSet<(int, int)> cellsSeen)
+    {
+        var c = GetCell(mv);
+
+        switch (mv.Type)
+        {
+            case MoveType.Reveal:
+                RevealCell(mv, moves, cellsSeen, c);
+                break;
+            case MoveType.Flag:
+                c.IsFlagged = true;
+                break;
+            case MoveType.Deflag:
+                c.IsFlagged = false;
+                break;
+        }
+    }
+
+    private void RevealCell(Move mv, Queue<Move> moves, HashSet<(int, int)> cellsSeen, Cell c)
+    {
+        c.Revealed = true;
+        if (c.IsBomb)
+        {
+            moves.Clear();
+            return;
+        }
+
+        var neighbors = NeighboringCells(mv).ToArray();
+        c.Neighbours = CountProximityBombs(neighbors);
+        if (0 < c.Neighbours)
+        {
+            return;
+        }
+
+        EnqueueUnseenNeighbours(neighbors, moves, cellsSeen);
+    }
+
+    private IEnumerable<(int, int)> NeighboringCells(Move mv) => matrix.Select(m => (mv.X + m.x, mv.Y + m.y)).Where(ValidPosition);
+    private int CountProximityBombs(IEnumerable<(int, int)> neighbours) => neighbours.Select(GetCell).Count(c => c.IsBomb);
+
+    private void EnqueueUnseenNeighbours(IEnumerable<(int, int)> neighbours, Queue<Move> moves, HashSet<(int, int)> cellsSeen)
+    {
+        foreach (var (dx, dy) in neighbours)
+        {
+            if (cellsSeen.Contains((dx, dy)))
+            {
+                continue;
+            }
+            cellsSeen.Add((dx, dy));
+            moves.Enqueue(Move.Reveal(dx, dy));
+        }
     }
 }
