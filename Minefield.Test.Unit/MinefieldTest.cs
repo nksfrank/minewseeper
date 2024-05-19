@@ -86,6 +86,26 @@ public class MinefieldTest
                   "flagging all bombs should win the game"
                 },
                 new object[] {
+                  (2,2),
+                  new []{(0,0), (2,2)},
+                  new []{Minefield.Flag(0,0)},
+                  @"
+                    __01
+                    1 ??
+                    0 F?",
+                  "flagging should not end the game"
+                },
+                new object[] {
+                  (2,2),
+                  new []{(0,0), (2,2)},
+                  new []{Minefield.Flag(0,0), Minefield.Flag(0,0)},
+                  @"
+                    __01
+                    1 ??
+                    0 ??",
+                  "flagging again should unflag the cell"
+                },
+                new object[] {
                   (4,4),
                   new [] {(2,3),(1,2),(3,3)},
                   new [] {Minefield.Reveal(0,0)},
