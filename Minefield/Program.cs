@@ -1,16 +1,14 @@
 ﻿
-var rnd = new Random();
 var header = "[Minefield] ('q' to quit)";
-var game = new Minefield.Minefield(5, 5, 3);
-Console.Write("bomb at: ");
-foreach (var b in Enumerable.Range(0, 3).Select(_ => rnd.Next(0, 5 * 5)))
-{
-    var x = b % 5;
-    var y = b / 5;
-    game.SetBomb(x, y);
-    Console.Write($"{x} {y},");
-}
 
+Func<Minefield.Minefield> init = () =>
+{
+    var rnd = new Random();
+    var bombs = Enumerable.Range(0, 3).Select(_ => (rnd.Next(0, 5), rnd.Next(0, 5)));
+    return new Minefield.Minefield(5, 5, bombs);
+};
+
+var game = init();
 while (game.State == Minefield.GameState.Runnig)
 {
     Console.Clear();
@@ -32,7 +30,7 @@ while (game.State == Minefield.GameState.Runnig)
         }
     }
 
-    game.MakeMove(Minefield.Move.Reveal(x, y));
+    game.MakeMove(new Minefield.Reveal((x, y)));
 }
 Console.Clear();
 game.Render(Console.Out);

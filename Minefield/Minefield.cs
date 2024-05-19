@@ -1,4 +1,7 @@
+using Coords = (int x, int y);
+
 namespace Minefield;
+
 
 public class MinefieldException(string msg) : Exception(msg);
 public class MinefieldInvalidSizeException(string msg) : MinefieldException(msg);
@@ -20,7 +23,8 @@ public class Cell
     {
         w.Write((this, g.State) switch
         {
-            ({ Revealed: false, IsBomb: true }, GameState.Lost) => "Q",
+            ({ Revealed: false, IsBomb: true, IsFlagged: false }, GameState.Lost) => "Q",
+            ({ Revealed: false, IsBomb: true, IsFlagged: true }, GameState.Lost) => "B",
             ({ Revealed: false, IsFlagged: true }, _) => "F",
             ({ Revealed: false }, _) => "?",
             ({ IsBomb: true }, _) => "X",
@@ -30,29 +34,12 @@ public class Cell
     }
 }
 
-public enum MoveType
+public interface IMove
 {
-    Flag,
-    Deflag,
-    Reveal
+    Coords Coords { get; }
 }
-public class Move
-{
-    public MoveType Type { get; init; }
-    public int X { get; init; }
-    public int Y { get; init; }
-
-    private Move(MoveType type, int x, int y)
-    {
-        Type = type;
-        X = x;
-        Y = y;
-    }
-
-    public static Move Reveal(int x, int y) => new Move(MoveType.Reveal, x, y);
-    public static Move Flag(int x, int y) => new Move(MoveType.Flag, x, y);
-    public static Move Deflag(int x, int y) => new Move(MoveType.Deflag, x, y);
-}
+public record Reveal(Coords Coords) : IMove;
+public record Flag(Coords Coords) : IMove;
 
 public enum GameState
 {
@@ -63,15 +50,15 @@ public enum GameState
 
 public class Minefield
 {
+    public static IMove Reveal(int x, int y) => new Reveal((x, y));
+    public static IMove Flag(int x, int y) => new Flag((x, y));
     public int Cols => board[0].Length;
     public int Rows => board.Length;
     public GameState State { get; private set; }
 
-    private int mines;
     private Cell[][] board;
-    public Cell[][] Board => board;//TODO: Return a copy and not actually the internal reference
 
-    public Minefield(int x, int y, int mines)
+    public Minefield(int x, int y, IEnumerable<Coords> mines)
     {
         if (x < 0 || y < 0)
         {
@@ -83,32 +70,28 @@ public class Minefield
         {
             board[i] = newRow.ToArray();
         }
-        this.mines = mines;
+
+        foreach (var m in mines)
+        {
+            SetBomb(m);
+        }
     }
 
-    public bool SetBomb(int x, int y)
+    public bool SetBomb(Coords m)
     {
-        if (!ValidPosition(x, y))
+        if (!ValidPosition(m))
         {
             return false;
         }
+        var (x, y) = m;
         this.board[y][x] = new Cell(false, true);
         return true;
     }
 
-    private bool ValidPosition((int, int) c) => ValidPosition(c.Item1, c.Item2);
-    private bool ValidPosition(int x, int y)
+    private bool ValidPosition(Coords c)
     {
+        var (x, y) = c;
         return 0 <= x && x < Cols && 0 <= y && y < Rows;
-    }
-
-    public void MakeMove(Move move)
-    {
-        if (!ValidPosition(move.X, move.Y))
-        {
-            return;
-        }
-        Update(move);
     }
 
     public void Render(TextWriter w)
@@ -126,34 +109,42 @@ public class Minefield
         }
         w.Write(Environment.NewLine);
 
-        for (var row = Rows - 1; 0 <= row; row--)
+        for (var y = Rows - 1; 0 <= y; y--)
         {
-            w.Write($"{row} ");
-            for (var col = 0; col < Cols; col++)
+            w.Write($"{y} ");
+            for (var x = 0; x < Cols; x++)
             {
-                board[row][col].Render(w, this);
+                board[y][x].Render(w, this);
             }
-            if (row != 0)
+            if (y != 0)
             {
                 w.Write(Environment.NewLine);
             }
         }
     }
 
-    private readonly static (int x, int y)[] matrix = {
+    private static readonly Coords[] neighborMatrix = {
       (-1, -1), (0, -1), (1, -1),
       (-1, 0), (1, 0),
       (-1, 1), (0, 1), (1, 1)
     };
 
-    private Cell GetCell(Move move) => GetCell(move.X, move.Y);
-    private Cell GetCell((int x, int y) c) => GetCell(c.x, c.y);
-    private Cell GetCell(int x, int y) => board[y][x];
-
-    private void Update(Move move)
+    private Cell GetCell(Coords move)
     {
+        var (x, y) = move;
+        return board[y][x];
+    }
+
+
+    public void MakeMove(IMove move)
+    {
+        if (!ValidPosition(move.Coords))
+        {
+            return;
+        }
+
         var cellsSeen = new HashSet<(int, int)>();
-        var moves = new Queue<Move>();
+        var moves = new Queue<IMove>();
         moves.Enqueue(move);
         while (moves.Any())
         {
@@ -161,38 +152,25 @@ public class Minefield
             ProcessCell(mv, moves, cellsSeen);
         }
 
-        var flat = board.SelectMany(r => r.Select(c => c));
-        var aBombIsRevealed = flat.Any(c => c.IsBomb && c.Revealed);
-        var allCellsAreRevealed = flat.Where(c => !c.IsBomb).All(c => c.Revealed);
-        var allBombsAreFlagged = flat.All(c => (c.IsBomb && c.IsFlagged));
-        State = (allCellsAreRevealed, allBombsAreFlagged, aBombIsRevealed) switch
-        {
-            (true, _, false) => GameState.Won,
-            (_, _, true) => GameState.Lost,
-            _ => State
-        };
-
+        CheckGameState();
     }
 
-    private void ProcessCell(Move mv, Queue<Move> moves, HashSet<(int, int)> cellsSeen)
+    private void ProcessCell(IMove mv, Queue<IMove> moves, HashSet<Coords> cellsSeen)
     {
-        var c = GetCell(mv);
+        var c = GetCell(mv.Coords);
 
-        switch (mv.Type)
+        switch (mv)
         {
-            case MoveType.Reveal:
-                RevealCell(mv, moves, cellsSeen, c);
+            case Reveal r:
+                RevealCell(r, moves, cellsSeen, c);
                 break;
-            case MoveType.Flag:
-                c.IsFlagged = true;
-                break;
-            case MoveType.Deflag:
-                c.IsFlagged = false;
+            case Flag _:
+                c.IsFlagged = !c.IsFlagged;
                 break;
         }
     }
 
-    private void RevealCell(Move mv, Queue<Move> moves, HashSet<(int, int)> cellsSeen, Cell c)
+    private void RevealCell(IMove mv, Queue<IMove> moves, HashSet<Coords> cellsSeen, Cell c)
     {
         c.Revealed = true;
         if (c.IsBomb)
@@ -211,10 +189,10 @@ public class Minefield
         EnqueueUnseenNeighbours(neighbors, moves, cellsSeen);
     }
 
-    private IEnumerable<(int, int)> NeighboringCells(Move mv) => matrix.Select(m => (mv.X + m.x, mv.Y + m.y)).Where(ValidPosition);
+    private IEnumerable<Coords> NeighboringCells(IMove mv) => neighborMatrix.Select(m => (mv.Coords.x + m.x, mv.Coords.y + m.y)).Where(ValidPosition);
     private int CountProximityBombs(IEnumerable<(int, int)> neighbours) => neighbours.Select(GetCell).Count(c => c.IsBomb);
 
-    private void EnqueueUnseenNeighbours(IEnumerable<(int, int)> neighbours, Queue<Move> moves, HashSet<(int, int)> cellsSeen)
+    private void EnqueueUnseenNeighbours(IEnumerable<Coords> neighbours, Queue<IMove> moves, HashSet<Coords> cellsSeen)
     {
         foreach (var (dx, dy) in neighbours)
         {
@@ -223,7 +201,24 @@ public class Minefield
                 continue;
             }
             cellsSeen.Add((dx, dy));
-            moves.Enqueue(Move.Reveal(dx, dy));
+            moves.Enqueue(new Reveal((dx, dy)));
         }
+    }
+
+    private void CheckGameState()
+    {
+        var cells = board.SelectMany(r => r.Select(c => c)).ToList();
+
+        var aBombIsRevealed = cells.Any(c => c.IsBomb && c.Revealed);
+        var allCellsAreRevealed = cells.Where(c => !c.IsBomb).All(c => c.Revealed);
+        var allBombsAreFlagged = cells.All(c => (c.IsBomb && c.IsFlagged));
+
+        State = (allCellsAreRevealed, allBombsAreFlagged, aBombIsRevealed) switch
+        {
+            (_, _, true) => GameState.Lost,
+            (true, _, _) => GameState.Won,
+            (_, true, _) => GameState.Won,
+            _ => State
+        };
     }
 }
