@@ -170,7 +170,13 @@ public class MinefieldTest
         Assert.AreEqual(NormalizeMultilineStrings(expected), NormalizeMultilineStrings(actual));
     }
 
-    public static string NormalizeMultilineStrings(string input) => String.Join(Environment.NewLine, input.Replace("\r\n", Environment.NewLine).Replace("\r", Environment.NewLine).Split(Environment.NewLine).Select(s => s.TrimStart()));
+    public static string NormalizeMultilineStrings(string input) => String.Join(
+        "\n",
+        input
+          .Replace("\r\n", "\n")
+          .Replace("\r", "\n")
+          .Split("\n")
+          .Select(s => s.Trim()));
     private string WithStringWriter(Action<TextWriter> fn)
     {
         using (var sw = new StringWriter())
