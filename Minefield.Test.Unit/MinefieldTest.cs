@@ -171,7 +171,7 @@ public class MinefieldTest
     }
 
     public static string NormalizeMultilineStrings(string input) => String.Join(
-        "\n",
+        Environment.NewLine,
         input
           .Replace("\r\n", "\n")
           .Replace("\r", "\n")
