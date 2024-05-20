@@ -14,13 +14,19 @@ while (game.State == Minefield.GameState.Runnig)
     Console.Clear();
     Console.WriteLine(header);
     game.Render(Console.Out);
+    Console.Write(Environment.NewLine);
     int x, y;
     while (true)
     {
         Console.Write("Input move [x y]: ");
+
         var input = Console.ReadLine();
         var parts = input?.Split(" ");
-        if (parts?.Length == 2 && int.TryParse(parts[0], out x) && int.TryParse(parts[1], out y))
+        if (parts?.Length == 1 && parts[0] == "q")
+        {
+            return;
+        }
+        else if (parts?.Length == 2 && int.TryParse(parts[0], out x) && int.TryParse(parts[1], out y))
         {
             break;
         }
